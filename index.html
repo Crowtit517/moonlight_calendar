@@ -1,0 +1,1103 @@
+<title>달빛달력</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap');
+
+  :root {
+    --ink: #0e1018;
+    --surface: #171a26;
+    --surface-raised: #202436;
+    --surface-hover: #262b40;
+    --line: #2c3146;
+    --line-soft: #23273a;
+    --text: #eceef5;
+    --text-soft: #9298b3;
+    --text-faint: #565c78;
+    --moon: #b9c6ff;
+    --moon-deep: #7c8bf0;
+    --gold: #f2c675;
+    --sun: #ff9d9d;
+    --sat: #8fb8ff;
+    --shadow: 0 20px 50px -20px rgba(0,0,0,0.6);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'Gowun Dodum', 'Noto Sans KR', sans-serif;
+    padding: 32px 20px 48px;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(122,139,240,0.16), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(242,198,117,0.08), transparent 55%);
+    background-repeat: no-repeat;
+  }
+
+  h1, h2, h3 { font-family: 'Gowun Batang', serif; margin: 0; text-wrap: balance; }
+
+  .app { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  /* ---- header ---- */
+  .masthead {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; padding-bottom: 6px; border-bottom: 1px solid var(--line-soft);
+  }
+  .masthead .brand { display: flex; align-items: baseline; gap: 10px; }
+  .masthead .brand .moon-glyph { font-size: 22px; filter: drop-shadow(0 0 10px rgba(185,198,255,0.5)); }
+  .masthead h1 { font-size: 26px; font-weight: 700; letter-spacing: 0.02em; }
+  .masthead .tagline { color: var(--text-faint); font-size: 12.5px; letter-spacing: 0.03em; }
+  .sync-pill {
+    font-size: 11.5px; color: var(--text-soft); border: 1px solid var(--line); border-radius: 100px;
+    padding: 4px 11px 4px 9px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); flex: none; }
+  .sync-pill[data-mode="db"] .sync-dot { background: #7ee2b8; box-shadow: 0 0 6px #7ee2b8; }
+  .sync-pill[data-mode="local"] .sync-dot { background: var(--gold); box-shadow: 0 0 6px var(--gold); }
+
+  /* ---- month nav ---- */
+  .month-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .month-nav .month-label { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 150px; }
+  .month-nav .month-label .yr { color: var(--text-soft); font-size: 15px; margin-right: 8px; font-family: 'Gowun Dodum', sans-serif; }
+  .nav-controls { display: flex; gap: 8px; align-items: center; }
+  button {
+    font-family: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--surface);
+    color: var(--text); transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  button:hover { background: var(--surface-hover); border-color: var(--moon-deep); }
+  button:focus-visible { outline: 2px solid var(--moon); outline-offset: 2px; }
+  .icon-btn { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 15px; }
+  .icon-btn.small { width: 24px; height: 24px; border-radius: 7px; font-size: 12px; }
+  .today-btn { border-radius: 10px; padding: 8px 14px; font-size: 13px; color: var(--moon); border-color: var(--moon-deep); }
+  .ledger-btn { border-radius: 10px; padding: 8px 14px; font-size: 13px; color: var(--gold); border-color: #6b5a30; white-space: nowrap; }
+
+  /* ---- layout: grid + panel ---- */
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+  @media (max-width: 780px) { .layout { grid-template-columns: 1fr; } }
+
+  /* ---- calendar grid ---- */
+  .weekdays { display: grid; grid-template-columns: repeat(7, 1fr); padding: 0 2px 8px; }
+  .weekdays span { text-align: center; font-size: 12px; color: var(--text-soft); letter-spacing: 0.04em; }
+  .weekdays span:first-child { color: var(--sun); }
+  .weekdays span:last-child { color: var(--sat); }
+
+  .grid { display: flex; flex-direction: column; gap: 8px; }
+  .week-row { position: relative; }
+  .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .bars-layer { position: absolute; inset: 0; pointer-events: none; }
+
+  .event-bar {
+    position: absolute; height: 15px; line-height: 15px; font-size: 10px; font-weight: 700;
+    padding: 0 6px; color: var(--ink); overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+    box-sizing: border-box;
+  }
+  .event-bar.done { opacity: 0.5; text-decoration: line-through; }
+
+  .day {
+    position: relative; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 12px;
+    padding: 8px; display: flex; flex-direction: column; cursor: pointer; text-align: left; color: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .day:hover { background: var(--surface-hover); }
+  .day:focus-visible { outline: 2px solid var(--moon); outline-offset: 1px; }
+  .day.out { opacity: 0.34; }
+  .day.selected { border-color: var(--moon-deep); background: var(--surface-raised); }
+  .day .num {
+    font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-soft);
+    width: 22px; height: 22px; margin-bottom: 4px; display: grid; place-items: center; border-radius: 50%;
+  }
+  .day.sunday .num { color: var(--sun); }
+  .day.saturday .num { color: var(--sat); }
+  .day.today .num { background: var(--moon); color: var(--ink); font-weight: 700; }
+  .day.today { border-color: var(--moon-deep); }
+  .day .bar-spacer { flex: none; height: 57px; }
+  .day .spend { margin-top: auto; font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--gold); }
+
+  /* ---- side panel (schedule only) ---- */
+  .panel {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 14px;
+    position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto;
+  }
+  .panel .panel-date { font-size: 17px; font-weight: 700; }
+  .panel .panel-date .dow { color: var(--text-soft); font-size: 13px; font-family: 'Gowun Dodum', sans-serif; margin-left: 6px; }
+  .panel-sub { font-size: 12px; color: var(--text-soft); letter-spacing: 0.03em; }
+
+  .event-list { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; padding-right: 2px; }
+  .event-list:empty::after { content: '이 날은 아직 비어 있어요.'; color: var(--text-faint); font-size: 12.5px; }
+  .event-row {
+    display: flex; align-items: center; gap: 9px; background: var(--surface-raised);
+    border: 1px solid var(--line-soft); border-radius: 11px; padding: 8px 9px;
+  }
+  .event-row .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .event-row .body { flex: 1; min-width: 0; }
+  .event-row .title { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event-row.done .title { text-decoration: line-through; color: var(--text-faint); }
+  .event-row .meta { font-size: 11px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+  .event-row input[type="checkbox"] { accent-color: var(--moon-deep); width: 15px; height: 15px; flex: none; }
+  .event-row .del, .expense-row .del {
+    border: none; background: transparent; color: var(--text-faint);
+    width: 24px; height: 24px; border-radius: 7px; font-size: 13px; flex: none;
+  }
+  .event-row .del:hover, .expense-row .del:hover { color: #ff8fa8; background: var(--surface-hover); border-color: transparent; }
+
+  .add-form { display: flex; flex-direction: column; gap: 9px; }
+  .add-form input[type="text"],
+  .expense-form input[type="text"], .expense-form input[type="number"] {
+    background: var(--surface-raised); border: 1px solid var(--line); color: var(--text);
+    border-radius: 9px; padding: 8px 10px; font-family: inherit; font-size: 13.5px;
+  }
+  .add-form input:focus-visible, .expense-form input:focus-visible { outline: 2px solid var(--moon); outline-offset: 1px; }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > * { flex: 1; min-width: 0; }
+  .row2 .todo-toggle { flex: none; }
+
+  .todo-toggle { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-soft); white-space: nowrap; }
+  .todo-toggle input { accent-color: var(--moon-deep); }
+
+  .color-picker { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; padding: 0; }
+  .color-swatch.active { border-color: var(--text); }
+  input[type="color"] {
+    -webkit-appearance: none; appearance: none; width: 28px; height: 28px; border: 2px solid var(--line);
+    border-radius: 50%; padding: 0; cursor: pointer; background: none;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+  input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+  input[type="color"]::-moz-color-swatch { border: none; border-radius: 50%; }
+
+  .submit-btn {
+    background: linear-gradient(135deg, var(--moon), var(--moon-deep)); color: var(--ink); border: none;
+    border-radius: 9px; padding: 9px; font-weight: 700; font-size: 13.5px; letter-spacing: 0.02em;
+  }
+  .submit-btn:hover { filter: brightness(1.08); }
+
+  /* ---- date trigger + inline mini calendar ---- */
+  .date-trigger {
+    text-align: left; width: 100%; border-radius: 9px; padding: 8px 10px; font-family: inherit;
+    font-size: 13.5px; background: var(--surface-raised); border: 1px solid var(--line); color: var(--text);
+  }
+  .date-trigger:hover { background: var(--surface-hover); border-color: var(--moon-deep); }
+  .mini-cal {
+    background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .mini-cal-head { display: flex; align-items: center; justify-content: space-between; }
+  .mini-cal-label { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .mini-cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .mini-cal-dow span { text-align: center; font-size: 9.5px; color: var(--text-faint); }
+  .mini-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+  .mini-day {
+    width: 100%; aspect-ratio: 1; border: none; background: transparent; color: var(--text-soft);
+    font-size: 11px; border-radius: 7px; font-variant-numeric: tabular-nums; padding: 0;
+  }
+  .mini-day:hover { background: var(--surface-hover); }
+  .mini-day.out { opacity: 0.3; }
+  .mini-day.today { box-shadow: inset 0 0 0 1px var(--moon-deep); }
+  .mini-day.selected, .mini-day.range-start, .mini-day.range-end { background: var(--moon); color: var(--ink); font-weight: 700; }
+  .mini-day.in-range { background: rgba(185, 198, 255, 0.18); border-radius: 0; color: var(--text); }
+  .mini-cal-hint { font-size: 11px; color: var(--text-faint); }
+  .mini-cal-footer { display: flex; justify-content: flex-end; gap: 8px; }
+  .mini-cal-footer button { border-radius: 7px; padding: 5px 12px; font-size: 12px; }
+  .mini-cal-cancel { background: var(--surface); }
+  .mini-cal-apply { background: linear-gradient(135deg, var(--moon), var(--moon-deep)); color: var(--ink); border: none; font-weight: 700; }
+
+  /* ---- time trigger + inline scroll/manual time picker ---- */
+  .time-mini { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .ampm-toggle { display: flex; gap: 6px; }
+  .ampm-btn { flex: 1; border-radius: 8px; padding: 6px; font-size: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--text-soft); }
+  .ampm-btn.active { background: var(--moon); color: var(--ink); border-color: transparent; font-weight: 700; }
+  .scroll-cols { display: flex; align-items: center; gap: 6px; }
+  .scroll-col {
+    flex: 1; max-height: 140px; overflow-y: auto; scroll-snap-type: y mandatory;
+    background: var(--surface); border: 1px solid var(--line-soft); border-radius: 8px; padding: 4px 0;
+  }
+  .scroll-col button {
+    display: block; width: 100%; text-align: center; padding: 7px 0; border: none; background: transparent;
+    color: var(--text-soft); font-size: 13px; font-variant-numeric: tabular-nums; scroll-snap-align: center; border-radius: 0;
+  }
+  .scroll-col button:hover { background: var(--surface-hover); }
+  .scroll-col button.selected { background: var(--moon); color: var(--ink); font-weight: 700; }
+  .scroll-sep { color: var(--text-faint); font-weight: 700; }
+  .time-manual {
+    background: var(--surface); border: 1px solid var(--line); color: var(--text); border-radius: 9px;
+    padding: 8px 10px; font-family: inherit; font-size: 13px; text-align: center;
+  }
+  .time-manual:focus-visible { outline: 2px solid var(--moon); outline-offset: 1px; }
+
+  /* mobile: schedule panel becomes a bottom sheet */
+  @media (max-width: 780px) {
+    .panel {
+      position: fixed; left: 0; right: 0; bottom: 0; top: auto; max-height: 82vh;
+      border-radius: 20px 20px 0 0; transform: translateY(105%); transition: transform 0.24s ease;
+      z-index: 40; margin: 0;
+    }
+    .panel.open { transform: translateY(0); }
+    .panel-close { display: inline-flex; }
+  }
+  .panel-close { display: none; border: none; background: transparent; color: var(--text-soft); font-size: 18px; width: 30px; height: 30px; border-radius: 8px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; }
+
+  .scrim {
+    position: fixed; inset: 0; background: rgba(5,6,12,0.55); opacity: 0; pointer-events: none;
+    transition: opacity 0.2s; z-index: 30;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+
+  /* ---- ledger modal (fully separate window) ---- */
+  .ledger-scrim { z-index: 55; }
+  .ledger-modal {
+    position: fixed; left: 50%; top: 50%; width: min(420px, calc(100vw - 32px)); max-height: 85vh;
+    overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+    padding: 20px; box-shadow: var(--shadow); z-index: 60; opacity: 0; pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.96); transition: opacity 0.18s, transform 0.18s;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .ledger-modal.open { opacity: 1; pointer-events: auto; transform: translate(-50%, -50%) scale(1); }
+  .ledger-modal h2 { font-size: 19px; }
+  .ledger-date-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ledger-date-row .date-trigger { width: auto; flex: 1; min-width: 120px; }
+  .ledger-chip {
+    font-size: 12.5px; color: var(--text-soft); background: var(--surface-raised); border: 1px solid var(--line);
+    border-radius: 100px; padding: 6px 13px;
+  }
+  .ledger-chip strong { color: var(--gold); font-variant-numeric: tabular-nums; margin-left: 5px; }
+
+  .expense-list { display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow-y: auto; padding-right: 2px; }
+  .expense-list:empty::after { content: '아직 지출 기록이 없어요.'; color: var(--text-faint); font-size: 12.5px; }
+  .expense-row {
+    display: flex; align-items: center; gap: 9px; background: var(--surface-raised);
+    border: 1px solid var(--line-soft); border-radius: 11px; padding: 8px 9px;
+  }
+  .expense-row .body { flex: 1; min-width: 0; }
+  .expense-row .title { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-soft); }
+  .expense-row .amount { font-size: 13.5px; font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .expense-form { display: flex; gap: 8px; }
+  .expense-form input[type="number"] { width: 108px; font-variant-numeric: tabular-nums; }
+  .expense-form input[type="text"] { flex: 1; min-width: 0; }
+  .expense-form button {
+    background: linear-gradient(135deg, var(--gold), #d99b3f); color: var(--ink); border: none;
+    border-radius: 9px; padding: 0 14px; font-weight: 700; font-size: 12.5px; white-space: nowrap;
+  }
+  .expense-form button:hover { filter: brightness(1.06); }
+
+  .divider { height: 1px; background: var(--line-soft); border: none; margin: 0; }
+
+  .year-panel-head { font-size: 13px; color: var(--text-soft); }
+  .year-panel-head strong { color: var(--gold); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .year-bars { display: flex; gap: 6px; align-items: flex-end; height: 80px; }
+  .year-bar {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+    gap: 6px; background: transparent; border: none; cursor: pointer; padding: 0;
+  }
+  .year-bar .bar-fill { width: 100%; max-width: 20px; min-height: 3px; background: var(--line); border-radius: 4px 4px 0 0; transition: background 0.15s; }
+  .year-bar.active .bar-fill, .year-bar:hover .bar-fill { background: linear-gradient(180deg, var(--gold), var(--moon-deep)); }
+  .year-bar .bar-label { font-size: 10px; color: var(--text-faint); }
+  .year-bar.active .bar-label { color: var(--gold); }
+
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header class="masthead">
+    <div>
+      <div class="brand">
+        <span class="moon-glyph">🌙</span>
+        <h1>달빛달력</h1>
+      </div>
+      <div class="tagline">원하는 색으로 하루에서 며칠까지, 일정을 담아두는 곳</div>
+    </div>
+    <span class="sync-pill" id="syncPill" data-mode="local"><span class="sync-dot"></span><span id="syncLabel">연결 확인 중…</span></span>
+  </header>
+
+  <div class="month-nav">
+    <div class="month-label"><span class="yr" id="yearLabel">2026</span><span id="monthLabel">9월</span></div>
+    <div class="nav-controls">
+      <button class="icon-btn" id="prevBtn" aria-label="이전 달">‹</button>
+      <button class="today-btn" id="todayBtn">오늘</button>
+      <button class="icon-btn" id="nextBtn" aria-label="다음 달">›</button>
+      <button class="ledger-btn" id="openLedgerBtn">🪙 가계부</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="weekdays">
+        <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <aside class="panel" id="panel">
+      <div class="panel-head">
+        <div class="panel-date" id="panelDate">-</div>
+        <button class="panel-close" id="panelClose" aria-label="닫기">✕</button>
+      </div>
+
+      <div class="panel-sub">📅 이 날의 일정</div>
+      <div class="event-list" id="eventList"></div>
+      <form class="add-form" id="addForm">
+        <input type="text" id="titleInput" placeholder="무슨 일이 있나요?" maxlength="80" required />
+
+        <button type="button" class="date-trigger" id="rangeTrigger">날짜 선택</button>
+        <div class="mini-cal" id="rangeMiniCal" hidden></div>
+        <input type="hidden" id="startDateInput" />
+        <input type="hidden" id="endDateInput" />
+
+        <button type="button" class="date-trigger" id="timeTrigger">⏰ 시간 없음 (종일)</button>
+        <div class="time-mini" id="timeMiniPicker" hidden>
+          <div class="ampm-toggle">
+            <button type="button" class="ampm-btn" data-v="AM">오전</button>
+            <button type="button" class="ampm-btn" data-v="PM">오후</button>
+          </div>
+          <div class="scroll-cols">
+            <div class="scroll-col" id="hourCol"></div>
+            <span class="scroll-sep">:</span>
+            <div class="scroll-col" id="minuteCol"></div>
+          </div>
+          <input type="text" id="timeManualInput" class="time-manual" placeholder="직접 입력 (예: 3:30 오후)" />
+          <div class="mini-cal-footer">
+            <button type="button" class="mini-cal-cancel" id="timeClearBtn">시간 없음</button>
+            <button type="button" class="mini-cal-apply" id="timeApplyBtn">적용</button>
+          </div>
+        </div>
+        <input type="hidden" id="timeInput" />
+
+        <div class="row2">
+          <label class="todo-toggle"><input type="checkbox" id="todoInput" /> 할 일로</label>
+        </div>
+        <div class="color-picker" id="colorPicker"></div>
+        <button type="submit" class="submit-btn">담아두기</button>
+      </form>
+    </aside>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="scrim ledger-scrim" id="ledgerScrim"></div>
+<div class="ledger-modal" id="ledgerModal">
+  <div class="panel-head">
+    <h2>🪙 가계부</h2>
+    <button class="panel-close" id="ledgerCloseBtn" aria-label="닫기" style="display:inline-flex;">✕</button>
+  </div>
+  <div class="ledger-date-row">
+    <button type="button" class="date-trigger" id="ledgerDateTrigger">날짜 선택</button>
+    <span class="ledger-chip">이 날 지출<strong id="ledgerDayTotal">0원</strong></span>
+  </div>
+  <div class="mini-cal" id="ledgerMiniCal" hidden></div>
+  <div class="expense-list" id="expenseList"></div>
+  <form class="expense-form" id="expenseForm">
+    <input type="number" id="amountInput" placeholder="금액" min="0" step="1" inputmode="numeric" required />
+    <input type="text" id="memoInput" placeholder="메모 (선택)" maxlength="40" />
+    <button type="submit">추가</button>
+  </form>
+  <hr class="divider" />
+  <div class="ledger-chip" style="align-self:flex-start;">이번 달 합계<strong id="monthTotal">0원</strong></div>
+  <div class="year-panel-head"><strong id="yearTotalLabel">0년 누적 0원</strong></div>
+  <div class="year-bars" id="yearBars"></div>
+</div>
+
+<script>
+(function () {
+  const PRESET_COLORS = [
+    { label: '로즈', hex: '#ff8fa8' },
+    { label: '민트', hex: '#7ee2b8' },
+    { label: '앰버', hex: '#ffb864' },
+    { label: '바이올렛', hex: '#c3a8ff' },
+    { label: '문라이트', hex: '#8fb8ff' },
+  ];
+  const MONTH_NAMES = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  const DOW_NAMES = ['일','월','화','수','목','금','토'];
+  const BAR_H = 15, BAR_GAP = 4, MAX_LANES = 3, BAR_TOP_OFFSET = 34;
+
+  const pad = n => String(n).padStart(2, '0');
+  const toKey = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const formatWon = n => Number(n || 0).toLocaleString('ko-KR') + '원';
+  const sumAmounts = list => (list || []).reduce((s, e) => s + Number(e.amount || 0), 0);
+  const shortDate = k => { const [, m, d] = k.split('-'); return `${Number(m)}/${Number(d)}`; };
+  const fullDate = k => { const [, m, d] = k.split('-'); return `${Number(m)}월 ${Number(d)}일`; };
+
+  const todayDate = new Date();
+  const todayKey = toKey(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+
+  let viewYear = todayDate.getFullYear();
+  let viewMonth = todayDate.getMonth();
+  let selectedKey = todayKey;
+  let allRangeEvents = [];
+  let expensesByDate = {};
+  let activeColor = PRESET_COLORS[0].hex;
+
+  let gridEventUnsub = null;
+  let gridExpenseUnsub = null;
+
+  let ledgerDate = todayKey;
+  let ledgerStatsYear = null;
+  let ledgerMonthExpensesByDate = {};
+  let ledgerYearExpenses = [];
+  let ledgerMonthUnsub = null;
+  let ledgerYearUnsub = null;
+
+  // ---- storage layer: db capability, falling back to localStorage ----
+  let dbNs = null;
+  let mode = 'local';
+
+  function createStore(collectionName, localKey, opts) {
+    const overlap = (opts && opts.overlap) || null;
+    function readLocal() { try { return JSON.parse(localStorage.getItem(localKey) || '[]'); } catch { return []; } }
+    function writeLocal(list) { try { localStorage.setItem(localKey, JSON.stringify(list)); } catch {} }
+    let localListener = null;
+    function localEmit() { if (localListener) localListener(readLocal()); }
+    function matches(e, startKey, endKey) {
+      return overlap ? (e[overlap.startField] <= endKey && e[overlap.endField] >= startKey)
+                      : (e.date >= startKey && e.date <= endKey);
+    }
+    return {
+      subscribeRange(startKey, endKey, cb) {
+        if (mode === 'db' && dbNs) {
+          let q = dbNs.collection(collectionName);
+          q = overlap
+            ? q.where(overlap.startField, '<=', endKey).where(overlap.endField, '>=', startKey)
+            : q.where('date', '>=', startKey).where('date', '<=', endKey);
+          return q.onSnapshot(
+            snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+            () => cb([])
+          );
+        }
+        localListener = (all) => cb(all.filter(e => matches(e, startKey, endKey)));
+        localEmit();
+        return () => { localListener = null; };
+      },
+      async add(data) {
+        if (mode === 'db' && dbNs) { await dbNs.collection(collectionName).add(data); }
+        else {
+          const all = readLocal();
+          all.push({ id: 'e' + Date.now() + Math.random().toString(36).slice(2, 7), ...data });
+          writeLocal(all); localEmit();
+        }
+      },
+      async update(id, data) {
+        if (mode === 'db' && dbNs) { await dbNs.collection(collectionName).doc(id).update(data); }
+        else {
+          const all = readLocal();
+          const i = all.findIndex(e => e.id === id);
+          if (i > -1) all[i] = { ...all[i], ...data };
+          writeLocal(all); localEmit();
+        }
+      },
+      async remove(id) {
+        if (mode === 'db' && dbNs) { await dbNs.collection(collectionName).doc(id).delete(); }
+        else { writeLocal(readLocal().filter(e => e.id !== id)); localEmit(); }
+      },
+    };
+  }
+
+  const eventStore = createStore('events', 'moonlight-calendar-events-v1', { overlap: { startField: 'start', endField: 'end' } });
+  const expenseStore = createStore('expenses', 'moonlight-calendar-expenses-v1');
+
+  async function initStore() {
+    try { dbNs = window.claude ? await window.claude.use('db') : null; } catch { dbNs = null; }
+    mode = dbNs ? 'db' : 'local';
+    const pill = document.getElementById('syncPill');
+    pill.dataset.mode = mode;
+    document.getElementById('syncLabel').textContent = mode === 'db' ? '기기 간 자동 저장' : '이 브라우저에만 저장';
+    renderMonth();
+  }
+
+  // ---- color picker (built once; never destroyed while a native color input may be mid-drag) ----
+  function renderColorPicker() {
+    const el = document.getElementById('colorPicker');
+    el.innerHTML = '';
+    PRESET_COLORS.forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'color-swatch'; b.style.background = c.hex; b.title = c.label; b.dataset.hex = c.hex;
+      b.addEventListener('click', () => { activeColor = c.hex; syncColorActive(); });
+      el.appendChild(b);
+    });
+    const custom = document.createElement('input');
+    custom.type = 'color'; custom.id = 'colorCustom'; custom.value = activeColor; custom.title = '직접 선택';
+    custom.addEventListener('input', e => { activeColor = e.target.value; syncColorActive(); });
+    el.appendChild(custom);
+    syncColorActive();
+  }
+  function syncColorActive() {
+    document.querySelectorAll('.color-swatch').forEach(b => b.classList.toggle('active', b.dataset.hex === activeColor));
+    const custom = document.getElementById('colorCustom');
+    if (custom && custom.value.toLowerCase() !== activeColor.toLowerCase()) custom.value = activeColor;
+  }
+
+  // ---- reusable inline mini calendar (used for range picking + ledger date picking) ----
+  function renderMiniCal(container, state, handlers) {
+    container.innerHTML = '';
+
+    const head = document.createElement('div'); head.className = 'mini-cal-head';
+    const prevBtn = document.createElement('button'); prevBtn.type = 'button'; prevBtn.className = 'icon-btn small'; prevBtn.textContent = '‹';
+    const nextBtn = document.createElement('button'); nextBtn.type = 'button'; nextBtn.className = 'icon-btn small'; nextBtn.textContent = '›';
+    const label = document.createElement('span'); label.className = 'mini-cal-label'; label.textContent = `${state.year}년 ${MONTH_NAMES[state.month]}`;
+    prevBtn.addEventListener('click', handlers.onPrev);
+    nextBtn.addEventListener('click', handlers.onNext);
+    head.appendChild(prevBtn); head.appendChild(label); head.appendChild(nextBtn);
+    container.appendChild(head);
+
+    const dowRow = document.createElement('div'); dowRow.className = 'mini-cal-dow';
+    DOW_NAMES.forEach(n => { const s = document.createElement('span'); s.textContent = n; dowRow.appendChild(s); });
+    container.appendChild(dowRow);
+
+    const gridEl = document.createElement('div'); gridEl.className = 'mini-cal-grid';
+    const firstDow = new Date(state.year, state.month, 1).getDay();
+    const daysInMonth = new Date(state.year, state.month + 1, 0).getDate();
+    const daysInPrev = new Date(state.year, state.month, 0).getDate();
+    const cells = [];
+    for (let i = firstDow - 1; i >= 0; i--) {
+      const d = daysInPrev - i;
+      const m = state.month === 0 ? 11 : state.month - 1;
+      const y = state.month === 0 ? state.year - 1 : state.year;
+      cells.push({ y, m, d, out: true });
+    }
+    for (let d = 1; d <= daysInMonth; d++) cells.push({ y: state.year, m: state.month, d, out: false });
+    while (cells.length % 7 !== 0) {
+      const last = cells[cells.length - 1];
+      const ov = new Date(last.y, last.m, last.d + 1);
+      cells.push({ y: ov.getFullYear(), m: ov.getMonth(), d: ov.getDate(), out: true });
+    }
+    cells.forEach(c => {
+      const key = toKey(c.y, c.m, c.d);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      let cls = 'mini-day' + (c.out ? ' out' : '') + (key === todayKey ? ' today' : '');
+      if (state.mode === 'single') {
+        if (key === state.single) cls += ' selected';
+      } else if (state.start && state.end) {
+        if (key === state.start && key === state.end) cls += ' selected';
+        else if (key === state.start) cls += ' range-start';
+        else if (key === state.end) cls += ' range-end';
+        else if (key > state.start && key < state.end) cls += ' in-range';
+      }
+      btn.className = cls;
+      btn.textContent = c.d;
+      btn.addEventListener('click', () => handlers.onDayClick(key));
+      gridEl.appendChild(btn);
+    });
+    container.appendChild(gridEl);
+
+    if (handlers.hint) {
+      const hint = document.createElement('div'); hint.className = 'mini-cal-hint'; hint.textContent = handlers.hint;
+      container.appendChild(hint);
+    }
+
+    const footer = document.createElement('div'); footer.className = 'mini-cal-footer';
+    const cancelBtn = document.createElement('button'); cancelBtn.type = 'button'; cancelBtn.className = 'mini-cal-cancel'; cancelBtn.textContent = '취소';
+    const applyBtn = document.createElement('button'); applyBtn.type = 'button'; applyBtn.className = 'mini-cal-apply'; applyBtn.textContent = '적용';
+    cancelBtn.addEventListener('click', handlers.onCancel);
+    applyBtn.addEventListener('click', handlers.onApply);
+    footer.appendChild(cancelBtn); footer.appendChild(applyBtn);
+    container.appendChild(footer);
+  }
+
+  // -- range mini-calendar (schedule form) --
+  let rangeState = null;
+  function openRangeCal() {
+    const s = document.getElementById('startDateInput').value || selectedKey;
+    const e = document.getElementById('endDateInput').value || selectedKey;
+    const [y, m] = s.split('-').map(Number);
+    rangeState = { year: y, month: m - 1, mode: 'range', start: s, end: e, pickingSecond: false };
+    document.getElementById('rangeMiniCal').hidden = false;
+    drawRangeCal();
+  }
+  function drawRangeCal() {
+    renderMiniCal(document.getElementById('rangeMiniCal'), rangeState, {
+      onPrev: () => { rangeState.month--; if (rangeState.month < 0) { rangeState.month = 11; rangeState.year--; } drawRangeCal(); },
+      onNext: () => { rangeState.month++; if (rangeState.month > 11) { rangeState.month = 0; rangeState.year++; } drawRangeCal(); },
+      onDayClick: (key) => {
+        if (!rangeState.pickingSecond) {
+          rangeState.start = key; rangeState.end = key; rangeState.pickingSecond = true;
+        } else {
+          if (key < rangeState.start) { rangeState.end = rangeState.start; rangeState.start = key; }
+          else { rangeState.end = key; }
+          rangeState.pickingSecond = false;
+        }
+        drawRangeCal();
+      },
+      onApply: () => {
+        document.getElementById('startDateInput').value = rangeState.start;
+        document.getElementById('endDateInput').value = rangeState.end;
+        updateRangeTriggerLabel();
+        document.getElementById('rangeMiniCal').hidden = true;
+      },
+      onCancel: () => { document.getElementById('rangeMiniCal').hidden = true; },
+      hint: '하루를 클릭하면 시작일, 다시 클릭하면 종료일이 지정돼요.',
+    });
+  }
+  function updateRangeTriggerLabel() {
+    const s = document.getElementById('startDateInput').value;
+    const e = document.getElementById('endDateInput').value;
+    document.getElementById('rangeTrigger').textContent = '📅 ' + (s === e ? fullDate(s) : `${fullDate(s)} ~ ${fullDate(e)}`);
+  }
+  document.getElementById('rangeTrigger').addEventListener('click', () => {
+    const cal = document.getElementById('rangeMiniCal');
+    document.getElementById('timeMiniPicker').hidden = true;
+    if (cal.hidden) openRangeCal(); else cal.hidden = true;
+  });
+
+  // -- time picker: AM/PM toggle + scrollable hour/minute lists + manual text entry, all synced --
+  let timeState = { hour12: 12, minute: 0, ampm: 'PM' };
+
+  function formatTimeLabel(hhmm) {
+    if (!hhmm) return '시간 없음 (종일)';
+    const [hh, mm] = hhmm.split(':').map(Number);
+    const ap = hh < 12 ? '오전' : '오후';
+    let h12 = hh % 12; if (h12 === 0) h12 = 12;
+    return `${ap} ${h12}:${pad(mm)}`;
+  }
+  function updateTimeTriggerLabel() {
+    document.getElementById('timeTrigger').textContent = '⏰ ' + formatTimeLabel(document.getElementById('timeInput').value);
+  }
+  function parseManualTime(raw) {
+    const m = raw.trim().match(/^(\d{1,2}):(\d{1,2})\s*(오전|오후|am|pm|AM|PM)?$/);
+    if (!m) return null;
+    let h = parseInt(m[1], 10); const mi = parseInt(m[2], 10);
+    if (mi < 0 || mi > 59) return null;
+    const ap = m[3] ? m[3].toLowerCase() : null;
+    if (ap === '오전' || ap === 'am') { if (h < 1 || h > 12) return null; if (h === 12) h = 0; }
+    else if (ap === '오후' || ap === 'pm') { if (h < 1 || h > 12) return null; if (h !== 12) h += 12; }
+    else if (h < 0 || h > 23) return null;
+    return { hour24: h, minute: mi };
+  }
+  function syncManualInput() {
+    document.getElementById('timeManualInput').value = `${timeState.hour12}:${pad(timeState.minute)} ${timeState.ampm === 'AM' ? '오전' : '오후'}`;
+  }
+  function drawTimePicker() {
+    document.querySelectorAll('.ampm-btn').forEach(b => b.classList.toggle('active', b.dataset.v === timeState.ampm));
+    const hourCol = document.getElementById('hourCol'); hourCol.innerHTML = '';
+    for (let h = 1; h <= 12; h++) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = h;
+      if (h === timeState.hour12) b.classList.add('selected');
+      b.addEventListener('click', () => { timeState.hour12 = h; drawTimePicker(); });
+      hourCol.appendChild(b);
+    }
+    const minCol = document.getElementById('minuteCol'); minCol.innerHTML = '';
+    for (let mnum = 0; mnum < 60; mnum++) {
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = pad(mnum);
+      if (mnum === timeState.minute) b.classList.add('selected');
+      b.addEventListener('click', () => { timeState.minute = mnum; drawTimePicker(); });
+      minCol.appendChild(b);
+    }
+    const selH = hourCol.querySelector('.selected'); if (selH) selH.scrollIntoView({ block: 'center' });
+    const selM = minCol.querySelector('.selected'); if (selM) selM.scrollIntoView({ block: 'center' });
+    syncManualInput();
+  }
+  function openTimePicker() {
+    const cur = document.getElementById('timeInput').value;
+    if (cur) {
+      const [hh, mm] = cur.split(':').map(Number);
+      let h12 = hh % 12; if (h12 === 0) h12 = 12;
+      timeState = { hour12: h12, minute: mm, ampm: hh < 12 ? 'AM' : 'PM' };
+    } else {
+      const now = new Date();
+      let h12 = now.getHours() % 12; if (h12 === 0) h12 = 12;
+      timeState = { hour12: h12, minute: now.getMinutes(), ampm: now.getHours() < 12 ? 'AM' : 'PM' };
+    }
+    document.getElementById('timeMiniPicker').hidden = false;
+    drawTimePicker();
+  }
+  document.querySelectorAll('.ampm-btn').forEach(b => {
+    b.addEventListener('click', () => { timeState.ampm = b.dataset.v; drawTimePicker(); });
+  });
+  document.getElementById('timeManualInput').addEventListener('change', (e) => {
+    const parsed = parseManualTime(e.target.value);
+    if (parsed) {
+      let h12 = parsed.hour24 % 12; if (h12 === 0) h12 = 12;
+      timeState = { hour12: h12, minute: parsed.minute, ampm: parsed.hour24 < 12 ? 'AM' : 'PM' };
+      drawTimePicker();
+    } else {
+      syncManualInput();
+    }
+  });
+  document.getElementById('timeManualInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+  });
+  document.getElementById('timeApplyBtn').addEventListener('click', () => {
+    let h24 = timeState.hour12 % 12; if (timeState.ampm === 'PM') h24 += 12;
+    document.getElementById('timeInput').value = `${pad(h24)}:${pad(timeState.minute)}`;
+    updateTimeTriggerLabel();
+    document.getElementById('timeMiniPicker').hidden = true;
+  });
+  document.getElementById('timeClearBtn').addEventListener('click', () => {
+    document.getElementById('timeInput').value = '';
+    updateTimeTriggerLabel();
+    document.getElementById('timeMiniPicker').hidden = true;
+  });
+  document.getElementById('timeTrigger').addEventListener('click', () => {
+    const p = document.getElementById('timeMiniPicker');
+    document.getElementById('rangeMiniCal').hidden = true;
+    if (p.hidden) openTimePicker(); else p.hidden = true;
+  });
+
+  // -- single mini-calendar (ledger date) --
+  let ledgerCalState = null;
+  function openLedgerCal() {
+    const [y, m] = ledgerDate.split('-').map(Number);
+    ledgerCalState = { year: y, month: m - 1, mode: 'single', single: ledgerDate };
+    document.getElementById('ledgerMiniCal').hidden = false;
+    drawLedgerCal();
+  }
+  function drawLedgerCal() {
+    renderMiniCal(document.getElementById('ledgerMiniCal'), ledgerCalState, {
+      onPrev: () => { ledgerCalState.month--; if (ledgerCalState.month < 0) { ledgerCalState.month = 11; ledgerCalState.year--; } drawLedgerCal(); },
+      onNext: () => { ledgerCalState.month++; if (ledgerCalState.month > 11) { ledgerCalState.month = 0; ledgerCalState.year++; } drawLedgerCal(); },
+      onDayClick: (key) => { ledgerCalState.single = key; drawLedgerCal(); },
+      onApply: () => {
+        ledgerDate = ledgerCalState.single;
+        updateLedgerTriggerLabel();
+        document.getElementById('ledgerMiniCal').hidden = true;
+        refreshLedgerSubscriptions();
+      },
+      onCancel: () => { document.getElementById('ledgerMiniCal').hidden = true; },
+    });
+  }
+  function updateLedgerTriggerLabel() {
+    document.getElementById('ledgerDateTrigger').textContent = '📅 ' + fullDate(ledgerDate);
+  }
+  document.getElementById('ledgerDateTrigger').addEventListener('click', () => {
+    const cal = document.getElementById('ledgerMiniCal');
+    if (cal.hidden) openLedgerCal(); else cal.hidden = true;
+  });
+
+  function eventsActiveOn(key) { return allRangeEvents.filter(e => e.start <= key && e.end >= key); }
+
+  function assignLanes(events) {
+    const sorted = [...events].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+    const laneEnds = [];
+    sorted.forEach(e => {
+      let lane = laneEnds.findIndex(end => end < e.start);
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(e.end); }
+      else { laneEnds[lane] = e.end; }
+      e.lane = lane;
+    });
+    return sorted;
+  }
+
+  // ---- month grid ----
+  let weekRows = [];
+
+  function renderMonth() {
+    document.getElementById('yearLabel').textContent = viewYear;
+    document.getElementById('monthLabel').textContent = MONTH_NAMES[viewMonth];
+
+    const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const daysInPrevMonth = new Date(viewYear, viewMonth, 0).getDate();
+
+    const cells = [];
+    for (let i = firstDow - 1; i >= 0; i--) {
+      const d = daysInPrevMonth - i;
+      const m = viewMonth === 0 ? 11 : viewMonth - 1;
+      const y = viewMonth === 0 ? viewYear - 1 : viewYear;
+      cells.push({ y, m, d, out: true });
+    }
+    for (let d = 1; d <= daysInMonth; d++) cells.push({ y: viewYear, m: viewMonth, d, out: false });
+    while (cells.length % 7 !== 0 || cells.length < 42) {
+      const last = cells[cells.length - 1];
+      const overflow = new Date(last.y, last.m, last.d + 1);
+      cells.push({ y: overflow.getFullYear(), m: overflow.getMonth(), d: overflow.getDate(), out: true });
+    }
+
+    const startKey = toKey(cells[0].y, cells[0].m, cells[0].d);
+    const endKey = toKey(cells[cells.length - 1].y, cells[cells.length - 1].m, cells[cells.length - 1].d);
+
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    const cellEls = {};
+    weekRows = [];
+
+    for (let w = 0; w < cells.length / 7; w++) {
+      const weekCells = cells.slice(w * 7, w * 7 + 7);
+      const weekRowEl = document.createElement('div');
+      weekRowEl.className = 'week-row';
+      const weekGridEl = document.createElement('div');
+      weekGridEl.className = 'week-grid';
+      const btns = [];
+      const keys = [];
+      weekCells.forEach(c => {
+        const key = toKey(c.y, c.m, c.d);
+        const dow = new Date(c.y, c.m, c.d).getDay();
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'day' + (c.out ? ' out' : '') + (key === todayKey ? ' today' : '') + (key === selectedKey ? ' selected' : '') + (dow === 0 ? ' sunday' : '') + (dow === 6 ? ' saturday' : '');
+        btn.dataset.key = key;
+        btn.innerHTML = `<span class="num">${c.d}</span><div class="bar-spacer"></div><div class="spend"></div>`;
+        btn.addEventListener('click', () => selectDate(key));
+        weekGridEl.appendChild(btn);
+        btns.push(btn); keys.push(key);
+        cellEls[key] = btn;
+      });
+      weekRowEl.appendChild(weekGridEl);
+      const barsLayer = document.createElement('div');
+      barsLayer.className = 'bars-layer';
+      weekRowEl.appendChild(barsLayer);
+      grid.appendChild(weekRowEl);
+      weekRows.push({ startKey: keys[0], endKey: keys[6], keys, btns, barsLayer });
+    }
+
+    if (gridEventUnsub) gridEventUnsub();
+    gridEventUnsub = eventStore.subscribeRange(startKey, endKey, (events) => {
+      allRangeEvents = assignLanes(events);
+      renderBars();
+      renderEventPanel();
+    });
+
+    if (gridExpenseUnsub) gridExpenseUnsub();
+    gridExpenseUnsub = expenseStore.subscribeRange(startKey, endKey, (list) => {
+      expensesByDate = {};
+      list.forEach(e => { (expensesByDate[e.date] = expensesByDate[e.date] || []).push(e); });
+      Object.keys(cellEls).forEach(key => {
+        const el = cellEls[key].querySelector('.spend');
+        const total = sumAmounts(expensesByDate[key]);
+        el.textContent = total > 0 ? '-' + formatWon(total) : '';
+      });
+    });
+
+    document.getElementById('startDateInput').value = selectedKey;
+    document.getElementById('endDateInput').value = selectedKey;
+    updateRangeTriggerLabel();
+  }
+
+  function renderBars() {
+    weekRows.forEach(week => {
+      week.barsLayer.innerHTML = '';
+      allRangeEvents
+        .filter(e => e.start <= week.endKey && e.end >= week.startKey && e.lane < MAX_LANES)
+        .forEach(e => {
+          const segStart = e.start < week.startKey ? week.startKey : e.start;
+          const segEnd = e.end > week.endKey ? week.endKey : e.end;
+          const colStart = week.keys.indexOf(segStart);
+          const colEnd = week.keys.indexOf(segEnd);
+          if (colStart === -1 || colEnd === -1) return;
+          const firstBtn = week.btns[colStart], lastBtn = week.btns[colEnd];
+          const left = firstBtn.offsetLeft + 3;
+          const width = (lastBtn.offsetLeft + lastBtn.offsetWidth) - firstBtn.offsetLeft - 6;
+          const top = firstBtn.offsetTop + BAR_TOP_OFFSET + e.lane * (BAR_H + BAR_GAP);
+          const bar = document.createElement('div');
+          bar.className = 'event-bar' + (e.isTodo && e.done ? ' done' : '');
+          bar.style.left = left + 'px'; bar.style.width = Math.max(width, 4) + 'px'; bar.style.top = top + 'px';
+          bar.style.background = e.color || PRESET_COLORS[0].hex;
+          bar.style.borderRadius = `${segStart === e.start ? '5px' : '0'} ${segEnd === e.end ? '5px' : '0'} ${segEnd === e.end ? '5px' : '0'} ${segStart === e.start ? '5px' : '0'}`;
+          bar.textContent = e.title;
+          week.barsLayer.appendChild(bar);
+        });
+    });
+  }
+
+  // ---- schedule panel ----
+  function selectDate(key) {
+    selectedKey = key;
+    document.querySelectorAll('.day').forEach(el => el.classList.toggle('selected', el.dataset.key === key));
+    const [y, m, d] = selectedKey.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    document.getElementById('panelDate').innerHTML = `${m}월 ${d}일<span class="dow">${DOW_NAMES[dow]}요일</span>`;
+    document.getElementById('startDateInput').value = key;
+    document.getElementById('endDateInput').value = key;
+    updateRangeTriggerLabel();
+    document.getElementById('rangeMiniCal').hidden = true;
+    renderEventPanel();
+    if (window.matchMedia('(max-width: 780px)').matches) openPanel();
+  }
+
+  function renderEventPanel() {
+    const list = document.getElementById('eventList');
+    list.innerHTML = '';
+    const events = eventsActiveOn(selectedKey).slice().sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : (a.time || '99').localeCompare(b.time || '99')));
+    events.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'event-row' + (e.isTodo && e.done ? ' done' : '');
+      const check = e.isTodo
+        ? `<input type="checkbox" ${e.done ? 'checked' : ''} aria-label="완료 표시" />`
+        : `<span class="dot" style="background:${e.color || PRESET_COLORS[0].hex}"></span>`;
+      const meta = e.start !== e.end ? `${shortDate(e.start)} ~ ${shortDate(e.end)}` : (e.time || '');
+      row.innerHTML = `
+        ${check}
+        <div class="body">
+          <div class="title"></div>
+          ${meta ? `<div class="meta"></div>` : ''}
+        </div>
+        <button type="button" class="del" aria-label="삭제">✕</button>
+      `;
+      row.querySelector('.title').textContent = e.title;
+      if (meta) row.querySelector('.meta').textContent = meta;
+      if (e.isTodo) {
+        row.querySelector('input[type="checkbox"]').addEventListener('change', (ev) => {
+          eventStore.update(e.id, { done: ev.target.checked });
+        });
+      }
+      row.querySelector('.del').addEventListener('click', () => eventStore.remove(e.id));
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById('addForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const titleInput = document.getElementById('titleInput');
+    const timeInput = document.getElementById('timeInput');
+    const todoInput = document.getElementById('todoInput');
+    const startInput = document.getElementById('startDateInput');
+    const endInput = document.getElementById('endDateInput');
+    const title = titleInput.value.trim();
+    if (!title) return;
+    let start = startInput.value || selectedKey;
+    let end = endInput.value || start;
+    if (end < start) end = start;
+    await eventStore.add({
+      start, end, title, time: timeInput.value || '', color: activeColor,
+      isTodo: todoInput.checked, done: false, createdAt: Date.now(),
+    });
+    titleInput.value = ''; timeInput.value = ''; todoInput.checked = false;
+    startInput.value = selectedKey; endInput.value = selectedKey;
+    updateRangeTriggerLabel();
+    updateTimeTriggerLabel();
+    document.getElementById('timeMiniPicker').hidden = true;
+    titleInput.focus();
+  });
+
+  // ---- ledger modal ----
+  function refreshLedgerSubscriptions() {
+    const [y, m] = ledgerDate.split('-').map(Number);
+    const monthStart = `${y}-${pad(m)}-01`;
+    const monthEnd = `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}`;
+    if (ledgerMonthUnsub) ledgerMonthUnsub();
+    ledgerMonthUnsub = expenseStore.subscribeRange(monthStart, monthEnd, (list) => {
+      ledgerMonthExpensesByDate = {};
+      list.forEach(e => { (ledgerMonthExpensesByDate[e.date] = ledgerMonthExpensesByDate[e.date] || []).push(e); });
+      renderLedgerModal();
+    });
+    if (ledgerStatsYear !== y) {
+      ledgerStatsYear = y;
+      if (ledgerYearUnsub) ledgerYearUnsub();
+      ledgerYearUnsub = expenseStore.subscribeRange(`${y}-01-01`, `${y}-12-31`, (list) => {
+        ledgerYearExpenses = list;
+        renderLedgerModal();
+      });
+    }
+  }
+
+  function renderLedgerModal() {
+    const [y, m] = ledgerDate.split('-').map(Number);
+    document.getElementById('ledgerDayTotal').textContent = formatWon(sumAmounts(ledgerMonthExpensesByDate[ledgerDate]));
+
+    const list = document.getElementById('expenseList');
+    list.innerHTML = '';
+    const entries = (ledgerMonthExpensesByDate[ledgerDate] || []).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    entries.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'expense-row';
+      row.innerHTML = `
+        <div class="body"><div class="title"></div></div>
+        <div class="amount"></div>
+        <button type="button" class="del" aria-label="삭제">✕</button>
+      `;
+      row.querySelector('.title').textContent = e.memo || '지출';
+      row.querySelector('.amount').textContent = formatWon(Number(e.amount || 0));
+      row.querySelector('.del').addEventListener('click', () => expenseStore.remove(e.id));
+      list.appendChild(row);
+    });
+
+    let monthTotal = 0;
+    Object.values(ledgerMonthExpensesByDate).forEach(arr => { monthTotal += sumAmounts(arr); });
+    document.getElementById('monthTotal').textContent = formatWon(monthTotal);
+
+    const yearTotal = ledgerYearExpenses.reduce((s, e) => s + Number(e.amount || 0), 0);
+    document.getElementById('yearTotalLabel').textContent = `${y}년 누적 ${formatWon(yearTotal)}`;
+
+    const breakdown = new Array(12).fill(0);
+    ledgerYearExpenses.forEach(e => {
+      const mi = Number(e.date.slice(5, 7)) - 1;
+      if (mi >= 0 && mi < 12) breakdown[mi] += Number(e.amount || 0);
+    });
+    renderYearBars(breakdown, m - 1, y);
+  }
+
+  function renderYearBars(breakdown, activeIdx, y) {
+    const max = Math.max(1, ...breakdown);
+    const wrap = document.getElementById('yearBars');
+    wrap.innerHTML = '';
+    breakdown.forEach((amt, i) => {
+      const col = document.createElement('button');
+      col.type = 'button';
+      col.className = 'year-bar' + (i === activeIdx ? ' active' : '');
+      col.title = `${i + 1}월 ${formatWon(amt)}`;
+      const h = Math.round((amt / max) * 56) + 3;
+      col.innerHTML = `<span class="bar-fill" style="height:${h}px"></span><span class="bar-label">${i + 1}</span>`;
+      col.addEventListener('click', () => {
+        ledgerDate = `${y}-${pad(i + 1)}-01`;
+        updateLedgerTriggerLabel();
+        refreshLedgerSubscriptions();
+      });
+      wrap.appendChild(col);
+    });
+  }
+
+  document.getElementById('expenseForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const amountInput = document.getElementById('amountInput');
+    const memoInput = document.getElementById('memoInput');
+    const amount = Math.round(Number(amountInput.value));
+    if (!amount || amount <= 0) return;
+    await expenseStore.add({ date: ledgerDate, amount, memo: memoInput.value.trim(), createdAt: Date.now() });
+    amountInput.value = ''; memoInput.value = ''; amountInput.focus();
+  });
+
+  function openLedger() {
+    ledgerDate = selectedKey || todayKey;
+    updateLedgerTriggerLabel();
+    document.getElementById('ledgerMiniCal').hidden = true;
+    document.getElementById('ledgerModal').classList.add('open');
+    document.getElementById('ledgerScrim').classList.add('open');
+    refreshLedgerSubscriptions();
+  }
+  function closeLedger() {
+    document.getElementById('ledgerModal').classList.remove('open');
+    document.getElementById('ledgerScrim').classList.remove('open');
+    if (ledgerMonthUnsub) { ledgerMonthUnsub(); ledgerMonthUnsub = null; }
+    if (ledgerYearUnsub) { ledgerYearUnsub(); ledgerYearUnsub = null; ledgerStatsYear = null; }
+  }
+  document.getElementById('openLedgerBtn').addEventListener('click', openLedger);
+  document.getElementById('ledgerCloseBtn').addEventListener('click', closeLedger);
+  document.getElementById('ledgerScrim').addEventListener('click', closeLedger);
+
+  // ---- nav ----
+  document.getElementById('prevBtn').addEventListener('click', () => {
+    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+    renderMonth();
+  });
+  document.getElementById('nextBtn').addEventListener('click', () => {
+    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+    renderMonth();
+  });
+  document.getElementById('todayBtn').addEventListener('click', () => {
+    viewYear = todayDate.getFullYear(); viewMonth = todayDate.getMonth();
+    selectedKey = todayKey;
+    renderMonth();
+  });
+
+  // ---- mobile schedule sheet ----
+  function openPanel() {
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('scrim').classList.add('open');
+  }
+  function closePanel() {
+    document.getElementById('panel').classList.remove('open');
+    document.getElementById('scrim').classList.remove('open');
+  }
+  document.getElementById('panelClose').addEventListener('click', closePanel);
+  document.getElementById('scrim').addEventListener('click', closePanel);
+
+  updateTimeTriggerLabel();
+  renderColorPicker();
+  initStore();
+})();
+</script>
